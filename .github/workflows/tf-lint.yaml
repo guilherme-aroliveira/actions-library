@@ -1,0 +1,53 @@
+name: 'Terraform Lint'
+
+on:
+  workflow_call:
+    inputs:
+      working_directory:
+        description: "Path of the working directory"
+        required: true
+        type: string
+      tf_version:
+        description: "Version of terraform to install"
+        required: true
+        type: string
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working_directory }}
+
+    steps:
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up tfenv
+      run: |
+        git clone --depth=1 https://github.com/tfutils/tfenv.git ~/.tfenv
+        ln -s ~/.tfenv/bin/* /usr/local/bin
+        mkdir -p ~/.local/bin/
+        . ~/.profile
+        ln -s ~/.tfenv/bin/* ~/.local/bin
+        echo "tvenf location $(which tfenv)"
+        echo "tfenv version $(tfenv --version)"
+
+    - name: Set up terraform
+      run: |
+        tfenv install ${{ inputs.tf_version }}
+        tfenv use ${{ inputs.tf_version }}
+
+    - name: Terraform - Lint and Validate
+      run: echo "Terraform version $(terraform version)"
+
+    - name: Run 'terraform init'
+      run: terraform init -backend=false
+
+    - name: Run 'terraform validate'
+      run: terraform validate
+
+    - name: check format / lint
+      run: terraform fmt -check
+      continue-on-error: true
