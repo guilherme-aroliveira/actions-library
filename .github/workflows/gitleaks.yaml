@@ -5,16 +5,20 @@ on:
 
 jobs:
 
+  checkout:
+    uses: ./.github/workflows/checkout.yaml
+
   scan: 
     name: gitleaks
     runs-on: ubuntu-latest
-    
-    steps:
-    - name: Set up branch
-      run: git config --global init.defaultBranch main
+    needs: checkout
 
-    - name: Checkout code
-      uses: actions/checkout@v4
+    steps:
+    - name: Download source artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: checkout-source
+        path: ${{ github.workspace }}/checkout-source
 
     - name: Set up gitleaks
       run: |
@@ -28,7 +32,7 @@ jobs:
     - name: Run gitleaks
       run: |
         echo "Run Gitleaks and generate a JSON report"
-        gitleaks detect --source ${{github.workspace}} --report-format json --report-path gitleaks-report.json
+        gitleaks detect --source ${{ github.workspace }}/checkout-source --report-format json --report-path gitleaks-report.json
         echo "Gitleaks scan completed. Report saved as gitleaks-report.json"
 
     - name: Upload gitleaks report

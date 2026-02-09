@@ -13,6 +13,10 @@ on:
         type: string
 
 jobs:
+
+  checkout:
+    uses: ./.github/workflows/checkout.yaml
+
   terraform:
     runs-on: ubuntu-latest
     defaults:
@@ -20,9 +24,11 @@ jobs:
         working-directory: ${{ inputs.working_directory }}
 
     steps:
-
-    - name: Checkout repository
-      uses: actions/checkout@v4
+    - name: Download source artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: checkout-source
+        path: ${{ github.workspace }}/checkout-source
 
     - name: Set up tfenv
       run: |
@@ -39,15 +45,15 @@ jobs:
         tfenv install ${{ inputs.tf_version }}
         tfenv use ${{ inputs.tf_version }}
 
-    - name: Terraform - Lint and Validate
+    - name: Check terraform version
       run: echo "Terraform version $(terraform version)"
 
-    - name: Run 'terraform init'
-      run: terraform init -backend=false
+    - name: Terraform fmt check
+      run: terraform fmt -check -recursive
+      continue-on-error: true
+
+    - name: Run 'terraform init' (no backend)
+      run: terraform init -backend=false -input=false
 
     - name: Run 'terraform validate'
       run: terraform validate
-
-    - name: check format / lint
-      run: terraform fmt -check
-      continue-on-error: true
