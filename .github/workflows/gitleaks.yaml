@@ -11,6 +11,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
+    - name: Set up branch
+      run: git config --global init.defaultBranch main
     
     - name: Checkout code
       uses: actions/checkout@v4
@@ -27,7 +30,7 @@ jobs:
     - name: Run gitleaks
       run: |
         echo "Run Gitleaks and generate a JSON report"
-        gitleaks detect --source ${{ github.workspace }}/checkout-source --report-format json --report-path gitleaks-report.json
+        gitleaks detect --source ${{github.workspace}} --report-format json --report-path gitleaks-report.json
         echo "Gitleaks scan completed. Report saved as gitleaks-report.json"
 
     - name: Upload gitleaks report
