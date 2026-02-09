@@ -22,7 +22,7 @@ jobs:
     needs: checkout
     defaults:
       run:
-        working-directory: ${{ inputs.working_directory }}
+        working-directory: ${{ github.workspace }}/checkout-source/${{ inputs.working_directory }}
 
     steps:
     - name: Download source artifact

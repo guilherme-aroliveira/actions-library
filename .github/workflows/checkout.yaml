@@ -32,7 +32,7 @@ jobs:
     - name: Upload source artifact
       uses: actions/upload-artifact@v4
       with:
-        name: checkout-source
+        name: checkout-source-${{ github.run_id }}-${{ github.job }}
         path: |
           ${{ github.workspace }}
           !${{ github.workspace }}/.git
