@@ -28,20 +28,6 @@ on:
       S3_LOCK:
         required: false
 
-      # DigitalOcean
-      DO_API_TOKEN:
-        required: false
-      SPACES_ACCESS_KEY:
-        required: false
-      SPACES_SECRET_KEY:
-        required: false
-      NEWRELIC_ACCOUNT:
-        required: false
-      NEWRELIC_API:
-        required: false
-      NEWRELIC_REGION:
-        required: false
-
 jobs:
   terraform:
     runs-on: ubuntu-latest
@@ -97,12 +83,10 @@ jobs:
 
     - name: Terraform Plan
       if: github.ref == 'refs/heads/main'
-      id: plan
       run: terraform plan -input=false -out=tfplan
       continue-on-error: false
 
     - name: Terraform Apply
-      id: apply
       run: |
         echo Deploying...
         terraform apply -auto-approve tfplan
