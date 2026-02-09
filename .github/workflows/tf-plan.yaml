@@ -27,8 +27,6 @@ on:
         required: false
       S3_LOCK:
         required: false
-      BACKEND_CONFIG_ARGS:
-        required: false
 
 jobs:
 
