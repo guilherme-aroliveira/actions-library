@@ -15,18 +15,6 @@ on:
         description: "Cloud provider to use (aws, azure, gcp, or none)"
         required: true
         type: string
-      init_backend:
-        description: "Whether to enable Terraform backend (true/false)"
-        required: false
-        type: boolean
-      plan_lock:
-        description: "Whether to enable state locking for plan (true/false)"
-        required: false
-        type: boolean
-      plan_refresh:
-        description: "Whether to refresh state during plan (true/false)"
-        required: false
-        type: boolean
     secrets:
       # AWS
       AWS_ASSUME_ROLE:
@@ -90,7 +78,7 @@ jobs:
         aws_bucket_key: ${{ secrets.AWS_BUCKET_KEY }}
         s3_locking: ${{ secrets.S3_LOCK }}
       run: |
-        terraform init -backend=${{ inputs.init_backend }} \ 
+        terraform init -backend=true \ 
           -backend-config="bucket=${aws_bucket_name}" \
           -backend-config="key=${aws_bucket_key}" \
           -backend-config="use_lockfile=${s3_locking}" \
@@ -100,8 +88,5 @@ jobs:
     - name: Terraform Plan
       id: plan
       run: |
-        terraform plan \
-          -lock=${{ inputs.plan_lock }} \
-          -input=false \
-          -refresh=${{ inputs.plan_refresh }}
+        terraform plan -input=false 
       continue-on-error: false
