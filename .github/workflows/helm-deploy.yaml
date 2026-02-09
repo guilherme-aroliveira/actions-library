@@ -3,6 +3,10 @@ name: 'Helm Deploy to EKS'
 on:
   workflow_call:
     inputs:
+      environment: 
+        description: "Environment"
+        required: true
+        type: string
       app:
         description: "Name of the app"
         required: true

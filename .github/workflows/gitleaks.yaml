@@ -5,20 +5,15 @@ on:
 
 jobs:
 
-  checkout:
-    uses: ./.github/workflows/checkout.yaml
 
   scan: 
     name: gitleaks
     runs-on: ubuntu-latest
-    needs: checkout
 
     steps:
-    - name: Download source artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: checkout-source
-        path: ${{ github.workspace }}/checkout-source
+    
+    - name: Checkout code
+      uses: actions/checkout@v4
 
     - name: Set up gitleaks
       run: |
