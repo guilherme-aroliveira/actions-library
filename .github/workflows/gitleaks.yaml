@@ -1,35 +1,40 @@
-name: 'Security Scan'
+name: Gitleaks Scan
 
 on:
   workflow_call:
 
 jobs:
 
-
-  scan: 
-    name: gitleaks
-    runs-on: ubuntu-latest
+  gitleaks: 
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-22.04
 
     steps:
 
-    - name: Set up branch
-      run: git config --global init.defaultBranch main
-    
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
+
+    - name: Install prerequisites
+      run: |
+        set -euo pipefail
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq git curl unzip ca-certificates
 
     - name: Set up gitleaks
       run: |
-        sudo apt-get update
+        set -euo pipefail
         GITLEAKS_VERSION=$(curl -s "https://api.github.com/repos/gitleaks/gitleaks/releases/latest" | grep -Po '"tag_name": "v\K[0-9.]+')
         wget -qO gitleaks.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz
-        tar xf gitleaks.tar.gz -C /usr/local/bin gitleaks
-        gitLeaks=$(gitleaks version)
-        echo "gitleaks version: $gitLeaks"
+        tar -xzf gitleaks.tar.gz -C /usr/local/bin gitleaks
+        echo "gitleaks version:"
+        gitleaks version
 
     - name: Run gitleaks
       run: |
-        echo "Run Gitleaks and generate a JSON report"
+        set -euo pipefail
+        echo "Running Gitleaks"
         gitleaks detect --source ${{github.workspace}} --report-format json --report-path gitleaks-report.json
         echo "Gitleaks scan completed. Report saved as gitleaks-report.json"
 

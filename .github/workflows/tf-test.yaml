@@ -1,4 +1,4 @@
-name: Terraform Lint
+name: Terraform Test
 
 on:
   workflow_call:
@@ -11,19 +11,24 @@ on:
         description: "Version of terraform to install"
         required: true
         type: string
+      modules_dir:
+        type: string
+        description: "Path to the directory containing modules, relative to the repo root"
+        default: "terraform/modules"
 
 jobs:
 
-  tf-lint:
+  tf-test:
     if: github.event_name == 'pull_request' && github.base_ref == 'main'
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-22-04
     env:
       TF_WORKDIR: ${{ inputs.work_dir }}
       TF_VERSION: ${{ inputs.tf_version }}
+      MODULES_DIR: "$[[ inputs.modules_dir ]]"
     defaults:
       run:
         working-directory: ${{ inputs.work_dir }}
-
+        
     steps:
     
     - name: Checkout repository
@@ -51,19 +56,24 @@ jobs:
         tfenv use "$TF_VERSION"
         echo "Terraform version $(terraform version)"
 
-    - name: Terraform Fmt
-      run: |
-        set -euo pipefail
-        echo "Checking formating..."
-        terraform fmt -check -recursive
-      continue-on-error: true
-
     - name: Terraform Init (no backend)
       run: |
         set -euo pipefail
         terraform init -backend=false -input=false
 
-    - name: Terraform Validate
+    - name: Terraform Test
       run: |
         set -euo pipefail
-        terraform validate
+        cd "$GITHUB_WORKSPACE/$MODULES_DIR"
+        for module_dir in */; do
+          module_name="${module_dir%/}"
+          if [ -d "${module_dir}tests" ] || ls "${module_dir}"*.tftest.hcl >/dev/null 2>&1; then
+            echo "== Testing module: $module_name"
+            (
+              cd $GITHUB_WORKSPACE/$MODULES_DIR/$module_dir"
+              tofu init -backend=false -input=false
+              tofu test -verbose
+            )
+          else
+            echo "== No tests found in module: $module_name, skipping"
+          fi

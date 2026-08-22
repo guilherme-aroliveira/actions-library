@@ -3,7 +3,7 @@ name: Terraform Apply
 on:
   workflow_call:
     inputs:
-      working_directory:
+      work_dir:
         description: "Path of the working directory"
         required: true
         type: string
@@ -11,12 +11,15 @@ on:
         description: "Version of terraform to install"
         required: true
         type: string
-      cloud_provider:
-        description: "Cloud provider to use (aws or digitalocean)"
+      tf_env:
+        description: "Deployment environment (prod/dev)"
         required: true
         type: string
+      #cloud_provider:
+      #  description: "Cloud provider to use"
+      #  required: true
+      #  type: string
     secrets:
-      # AWS
       AWS_ASSUME_ROLE:
         required: false
       AWS_REGION:
@@ -25,69 +28,96 @@ on:
         required: false
       AWS_BUCKET_KEY:
         required: false
-      S3_LOCK:
-        required: false
 
 jobs:
-  terraform:
-    runs-on: ubuntu-latest
+
+  tf-apply:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    environment: ${{ inputs.tf_env }}
+    env:
+      TOFU_WORKDIR: ${{ inputs.work_dir }}
+      TOFU_VERSION: ${{ inputs.tf_version }}
     defaults:
       run:
-        working-directory: ${{ inputs.working_directory }}
+        working-directory: ${{ inputs.work_dir }}
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
-    - name: Set up tfenv
-      run: |
-        git clone --depth=1 https://github.com/tfutils/tfenv.git ~/.tfenv
-        ln -s ~/.tfenv/bin/* /usr/local/bin
-        mkdir -p ~/.local/bin/
-        . ~/.profile
-        ln -s ~/.tfenv/bin/* ~/.local/bin
-        echo "tvenf location $(which tfenv)"
-        echo "tfenv version $(tfenv --version)"
-
-    - name: Set up terraform
-      run: |
-        tfenv install ${{ inputs.tf_version }}
-        tfenv use ${{ inputs.tf_version }}
-        tfVersion=$(terraform version)
-        echo "terraform version: $tfVersion"
-
-    - name: Configure AWS credentials
-      id: configure_aws_credentials
-      if: ${{ inputs.cloud_provider == 'aws' }}
-      env:
-        aws-region: ${{ secrets.AWS_REGION }}
-        aws-assume-role: ${{ secrets.AWS_ASSUME_ROLE }}
-      uses: aws-actions/configure-aws-credentials@v4
+    - name: Download plan artifact
+      uses: actions/download-artifact@v4
       with:
-        role-to-assume: ${{ env.aws-assume-role }}
-        aws-region: ${{ env.aws-region }}
+        name: tf-plan-${{ github.sha }}
+        path: ${{ inputs.work_dir }}
+
+    - name: Install prerequisites
+      run: |
+        set -euo pipefail
+        export DEBIAN_FRONTEND=noninteractive
+        export TZ=America/New_York
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq git curl unzip ca-certificates jq awscli
+        sudo ln -snf "/usr/share/zoneinfo/$TZ" /etc/localtime
+        echo "$TZ" | sudo tee /etc/timezone > /dev/null
+        sudo dpkg-reconfigure -f noninteractive tzdata
+
+    - name: Set up tfenv (Terraform's version manager)
+      run: |
+        set -euo pipefail
+        git clone --depth=1 https://github.com/tfutils/tfenv.git ~/.tfenv
+        echo "$HOME/.tfenv/bin" >> "$GITHUB_PATH"
+        mkdir -p ~/.local/bin/
+        ln -s ~/.tfenv/bin/* /usr/local/bin
+        echo "tfenv location: $(which tfenv || echo 'pending PATH refresh')"
+
+    - name: Install/select Terraform
+      run: |
+        set -euo pipefail
+        tfenv install "$TF_VERSION"
+        tfenv use "$TF_VERSION"
+        echo "Terraform version $(terraform version)"
+
+    - name: Configure AWS credentials via OIDC
+      env:
+        AWS_ASSUME_ROLE: ${{ secrets.AWS_ASSUME_ROLE }}
+        AWS_REGION: ${{ secrets.AWS_REGION }}
+      run: |
+        set -euo pipefail
+        echo "Assuming AWS role via OIDC"
+        echo "AWS_ASSUME_ROLE is set:" $([ -n "${AWS_ASSUME_ROLE:-}" ] && echo yes || echo no)
+        AWS_JWT=$(curl -sSL \
+          -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+          "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com" \
+          | jq -r '.value')
+
+        CREDS=$(aws sts assume-role-with-web-identity \
+          --role-arn "$AWS_ASSUME_ROLE" \
+          --role-session-name "github-actions-${{ github.run_id }}" \
+          --web-identity-token "$AWS_JWT" \
+          --region "$AWS_REGION" \
+          --output json)
+
+        echo "AWS_ACCESS_KEY_ID=$(echo "$CREDS" | jq -r '.Credentials.AccessKeyId')" >> "$GITHUB_ENV"
+        echo "AWS_SECRET_ACCESS_KEY=$(echo "$CREDS" | jq -r '.Credentials.SecretAccessKey')" >> "$GITHUB_ENV"
+        echo "AWS_SESSION_TOKEN=$(echo "$CREDS" | jq -r '.Credentials.SessionToken')" >> "$GITHUB_ENV"
 
     - name: Terraform Init
       env:
-        aws_region: ${{ secrets.AWS_REGION }}
-        aws_bucket_name: ${{ secrets.AWS_BUCKET_NAME }}
-        aws_bucket_key: ${{ secrets.AWS_BUCKET_KEY }}
-        s3_locking: ${{ secrets.S3_LOCK }}
+        AWS_BUCKET_NAME: ${{ secrets.AWS_BUCKET_NAME }}
+        AWS_BUCKET_KEY: ${{ secrets.AWS_BUCKET_KEY }}
       run: |
+        set -euo pipefail
         terraform init -backend=true \
-          -backend-config="bucket=${aws_bucket_name}" \
-          -backend-config="key=${aws_bucket_key}" \
-          -backend-config="use_lockfile=${s3_locking}" \
-          -backend-config="encrypt=true" \
+          -backend-config="bucket=${AWS_BUCKET_NAME}" \
+          -backend-config="key=${AWS_BUCKET_KEY}" \
+          -backend-config="use_lockfile=true" \
+          -backend-config="encrypt=true"
       continue-on-error: false
 
-    - name: Terraform Plan
-      if: github.ref == 'refs/heads/main'
-      run: terraform plan -input=false -out=tfplan
-      continue-on-error: false
-
-    - name: Terraform Apply
+    - name: OpenTofu Apply
       run: |
-        echo Deploying...
-        terraform apply -auto-approve tfplan
-      continue-on-error: false
+        set -euo pipefail
+        echo "== Deploying infrastructure..."
+        tofu apply -input=false -auto-approve tfplan
