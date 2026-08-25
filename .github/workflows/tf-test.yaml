@@ -69,8 +69,8 @@ jobs:
             echo "== Testing module: $module_name"
             (
               cd "$GITHUB_WORKSPACE/$MODULES_DIR/$module_dir"
-              tofu init -backend=false -input=false
-              tofu test -verbose
+              terraform init -backend=false -input=false
+              terraform test -verbose
             )
           else
             echo "== No tests found in module: $module_name, skipping"
