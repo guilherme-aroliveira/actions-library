@@ -11,6 +11,10 @@ on:
         description: "Version of terraform to install"
         required: true
         type: string
+      tf_env:
+        description: "Deployment environment (prod/dev)"
+        required: true
+        type: string
       #cloud_provider:
       #  description: "Cloud provider to use"
       #  required: true
@@ -32,6 +36,7 @@ jobs:
       (github.event_name == 'pull_request' && github.base_ref == 'main') || 
       (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-22.04
+    environment: ${{ inputs.tf_env }}
     env:
       TF_WORKDIR: ${{ inputs.work_dir }}
       TF_VERSION: ${{ inputs.tf_version }}
@@ -82,6 +87,8 @@ jobs:
           -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
           "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com" \
           | jq -r '.value')
+
+        echo "$AWS_JWT" | cut -d. -f2 | base64 -d 2>/dev/null | jq .
 
         CREDS=$(aws sts assume-role-with-web-identity \
           --role-arn "$AWS_ASSUME_ROLE" \
