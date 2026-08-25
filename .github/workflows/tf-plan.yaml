@@ -64,10 +64,12 @@ jobs:
       run: |
         set -euo pipefail
         git clone --depth=1 https://github.com/tfutils/tfenv.git ~/.tfenv
-        echo "$HOME/.tfenv/bin" >> "$GITHUB_PATH"
-        mkdir -p ~/.local/bin/
         ln -s ~/.tfenv/bin/* /usr/local/bin
-        echo "tfenv location: $(which tfenv || echo 'pending PATH refresh')"
+        mkdir -p ~/.local/bin/
+        . ~/.profile
+        ln -s ~/.tfenv/bin/* /usr/local/bin
+        echo "tfenv location $(which tfenv)"
+        echo "tfenv version $(tfenv --version)"
 
     - name: Install/select Terraform
       run: |
