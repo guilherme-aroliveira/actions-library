@@ -1,10 +1,14 @@
-name: 'Helm Deploy to EKS'
+name: Helm Deploy to EKS
 
 on:
   workflow_call:
     inputs:
       environment: 
         description: "Environment"
+        required: true
+        type: string
+      helm_version:
+        description: "Version of helm to install"
         required: true
         type: string
       app:
@@ -24,61 +28,97 @@ jobs:
 
   ecr-push:
     name: ECR 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
 
     - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Setup aws cli
-      run: |
-        sudo apt-get update
-        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-        unzip awscliv2.zip
-        sudo ./aws/install --update
-        echo "aws-cli version: $(aws --version)"
+      uses: actions/checkout@v7
 
     - name: Setup kubectl
       run: |
-        sudo apt-get update
-        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"
+        set -euo pipefail
+        export DEBIAN_FRONTEND=noninteractive
+        sudo apt-get update -qq
+        KUBECTL_VERSION=$(curl -L -s https://dl.k8s.io/release/stable.txt)
+        curl -fsSLO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+        curl -fsSLO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256"c
         echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check
         chmod +x kubectl
         mkdir -p ~/.local/bin
         mv ./kubectl ~/.local/bin/kubectl
-        echo "kubectl version: $(kubectl version --client)"
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        echo "kubectl version: $(kubectl version --client)" 
 
     - name: Install Helm
+      env:
+        HELM_VERSION: ${{ inputs.helm_version }}
       run: |
-        curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 > get_helm.sh
-        chmod 700 get_helm.sh
-        ./get_helm.sh
+        set -euo pipefail
+        curl -fsSLO "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz"
+        curl -fsSLO "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz.sha256sum"
+        sha256sum --check "helm-${HELM_VERSION}-linux-amd64.tar.gz.sha256sum"
+        tar -zxf "helm-${HELM_VERSION}-linux-amd64.tar.gz"
+        sudo mv linux-amd64/helm /usr/local/bin/helm
+        echo "helm version: $(helm version)"
 
-    - name: Configure aws credentials
+    - name: Configure AWS credentials via OIDC
+      env:
+        AWS_ASSUME_ROLE: ${{ secrets.AWS_ASSUME_ROLE }}
+        AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID}}
+        AWS_REGION: ${{ secrets.AWS_REGION }}
+        ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY}}
       run: |
-        export TEMP_CREDS=$(aws sts assume-role --role-arn ${{ secrets.ROLE_TO_ASSUME }} --role-session-name "GitHubActionsSession")
-        export AWS_ACCESS_KEY_ID=$(echo $TEMP_CREDS | jq -r '.Credentials.AccessKeyId')
-        export AWS_SECRET_ACCESS_KEY=$(echo $TEMP_CREDS | jq -r '.Credentials.SecretAccessKey')
-        export AWS_SESSION_TOKEN=$(echo $TEMP_CREDS | jq -r '.Credentials.SessionToken')
+        set -euo pipefail
+        echo "Assuming AWS role via OIDC"
+        echo "AWS_ASSUME_ROLE is set:" $([ -n "${AWS_ASSUME_ROLE:-}" ] && echo yes || echo no)
+
+        AWS_JWT=$(curl -sSL \
+          -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+          "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com" \
+          | jq -r '.value')
+
+        CREDS=$(aws sts assume-role-with-web-identity \
+          --role-arn "$AWS_ASSUME_ROLE" \
+          --role-session-name "github-actions-${{ github.run_id }}" \
+          --web-identity-token "$AWS_JWT" \
+          --region "$AWS_REGION" \
+          --output json)
+
+        echo "AWS_ACCESS_KEY_ID=$(echo "$CREDS" | jq -r '.Credentials.AccessKeyId')" >> "$GITHUB_ENV"
+        echo "AWS_SECRET_ACCESS_KEY=$(echo "$CREDS" | jq -r '.Credentials.SecretAccessKey')" >> "$GITHUB_ENV"
+        echo "AWS_SESSION_TOKEN=$(echo "$CREDS" | jq -r '.Credentials.SessionToken')" >> "$GITHUB_ENV"
 
     - name: Configure kubeconfig
+      env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
       run: |
-        aws eks update-kubeconfig --name eks-${{ inputs.environment }}-cluster --region ${{ secrets.AWS_REGION }}
+        set -euo pipefail
+        aws eks update-kubeconfig \ 
+          --name eks-${{ inputs.environment }}-cluster \ 
+          --region ${AWS_REGION}
         echo "List all namespaces..."
         kubectl get ns
 
-    - name: Check Helm Chart
+    - name: Check Helm Chart (dry-run)
       run: |
-        helm upgrade --install ${{ inputs.app }} ./helm-apps/${{ inputs.app }} -n ${{ inputs.namespace }} --create-namespace --dry-run
+        set -euo pipefail
+        helm upgrade \ 
+          --install ${{ inputs.app }} ./helm-apps/${{ inputs.app }} \ 
+          -n ${{ inputs.namespace }} \ 
+          --create-namespace \
+          --dry-run
       continue-on-error: false
 
     - name: Deploy Helm Chart
       run: |
-        helm upgrade --install ${{ inputs.app }} ./helm-apps/${{ inputs.app }} -n ${{ inputs.namespace }} --create-namespace
+        set -euo pipefail
+        helm upgrade --install ${{ inputs.app }} ./helm-apps/${{ inputs.app }} \
+          -n ${{ inputs.namespace }} \ 
+          --create-namespace
     
     - name: Validation
       run: |
+        set -euo pipefail
         echo "Validating ${{ inputs.app }} deployment..."
         kubectl get all -n ${{ inputs.namespace }}

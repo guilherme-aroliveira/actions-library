@@ -1,4 +1,4 @@
-name: 'Helm Deploy to EKS'
+name: Helm Lint
 
 on:
   workflow_call:
@@ -7,41 +7,42 @@ on:
         description: "Name of the app"
         required: true
         type: string
+      helm_version:
+        description: "Version of helm to install"
+        required: true
+        type: string
 
 jobs:
 
   ecr-push:
     name: ECR 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
 
     - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Setup kubectl
-      run: |
-        sudo apt-get update
-        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"
-        echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check
-        chmod +x kubectl
-        mkdir -p ~/.local/bin
-        mv ./kubectl ~/.local/bin/kubectl
-        echo "kubectl version: $(kubectl version --client)"
+      uses: actions/checkout@v7
 
     - name: Install Helm
+      env:
+        HELM_VERSION: ${{ inputs.helm_version }}
       run: |
-        curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 > get_helm.sh
-        chmod 700 get_helm.sh
-        ./get_helm.sh
+        set -euo pipefail
+        curl -fsSLO "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz"
+        curl -fsSLO "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz.sha256sum"
+        sha256sum --check "helm-${HELM_VERSION}-linux-amd64.tar.gz.sha256sum"
+        tar -zxf "helm-${HELM_VERSION}-linux-amd64.tar.gz"
+        sudo mv linux-amd64/helm /usr/local/bin/helm
+        echo "helm version: $(helm version)"
 
     - name: Lint Helm Chart
       run: |
+        set -euo pipefail
         helm lint ./helm-apps/${{ inputs.app }}
       continue-on-error: false
 
     - name: Check template
       run: |
+        set -euo pipefail
         helm template ./helm-apps/${{ inputs.app }} --debug
       continue-on-error: false
