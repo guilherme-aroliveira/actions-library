@@ -23,7 +23,7 @@ on:
         required: true
       AWS_ACCOUNT_ID:
         required: true
-      ROLE_TO_ASSUME:
+      AWS_ASSUME_ROLE:
         required: true
       ECR_REPOSITORY:
         required: true

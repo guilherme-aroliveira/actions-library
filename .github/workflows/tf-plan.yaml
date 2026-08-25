@@ -72,7 +72,7 @@ jobs:
         set -euo pipefail
         tfenv install "$TF_VERSION"
         tfenv use "$TF_VERSION"
-        echo "Terraform version $(terraform version)"
+        echo "Terraform version: $(terraform version)"
 
     - name: Configure AWS credentials via OIDC
       env:

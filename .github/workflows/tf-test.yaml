@@ -52,7 +52,7 @@ jobs:
         set -euo pipefail
         tfenv install "$TF_VERSION"
         tfenv use "$TF_VERSION"
-        echo "Terraform version $(terraform version)"
+        echo "Terraform version: $(terraform version)"
 
     - name: Terraform Init (no backend)
       run: |
