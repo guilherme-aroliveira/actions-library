@@ -65,6 +65,7 @@ jobs:
         set -euo pipefail
         echo "Assuming AWS role via OIDC"
         echo "AWS_ASSUME_ROLE is set:" $([ -n "${AWS_ASSUME_ROLE:-}" ] && echo yes || echo no)
+        echo "Role account/name: $(echo "$AWS_ASSUME_ROLE" | cut -d: -f5,6)"
 
         AWS_JWT=$(curl -sSL \
           -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
