@@ -41,6 +41,7 @@ jobs:
     env:
       TF_WORKDIR: ${{ inputs.work_dir }}
       TF_VERSION: ${{ inputs.tf_version }}
+      TF_VAR_env: ${{ inputs.tf_env }}
     defaults:
       run:
         working-directory: ${{ inputs.work_dir }}
@@ -129,4 +130,4 @@ jobs:
       with:
         name: tf-plan-${{ github.sha }}
         retention-days: 1
-        path: $TF_WORKDIR/tfplan
+        path: ${{ inputs.work_dir }}/tfplan

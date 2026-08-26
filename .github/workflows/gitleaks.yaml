@@ -13,9 +13,14 @@ jobs:
     steps:
 
     - name: Checkout repository
-      uses: actions/checkout@v7
-      with:
-        fetch-depth: 0
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        set -euo pipefail
+        git init -q
+        git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+        git fetch --unshallow origin || git fetch origin
+        git checkout -q "$GITHUB_SHA"
 
     - name: Install prerequisites
       run: |
