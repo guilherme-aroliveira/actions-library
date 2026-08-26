@@ -1,4 +1,4 @@
-name: Helm Deploy to EKS
+name: Helm Deploy
 
 on:
   workflow_call:
@@ -26,8 +26,8 @@ on:
 
 jobs:
 
-  ecr-push:
-    name: ECR 
+  helm-deploy:
+    name: Deploy to EKS
     runs-on: ubuntu-22.04
 
     steps:
@@ -84,6 +84,10 @@ jobs:
           --web-identity-token "$AWS_JWT" \
           --region "$AWS_REGION" \
           --output json)
+
+        echo "::add-mask::$(echo "$CREDS" | jq -r '.Credentials.AccessKeyId')"
+        echo "::add-mask::$(echo "$CREDS" | jq -r '.Credentials.SecretAccessKey')"
+        echo "::add-mask::$(echo "$CREDS" | jq -r '.Credentials.SessionToken')"
 
         echo "AWS_ACCESS_KEY_ID=$(echo "$CREDS" | jq -r '.Credentials.AccessKeyId')" >> "$GITHUB_ENV"
         echo "AWS_SECRET_ACCESS_KEY=$(echo "$CREDS" | jq -r '.Credentials.SecretAccessKey')" >> "$GITHUB_ENV"

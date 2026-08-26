@@ -28,6 +28,7 @@ on:
 jobs:
 
   tf-destroy:
+    name: Terraform Destroy
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-22.04
     env:
@@ -86,6 +87,10 @@ jobs:
           --web-identity-token "$AWS_JWT" \
           --region "$AWS_REGION" \
           --output json)
+
+        echo "::add-mask::$(echo "$CREDS" | jq -r '.Credentials.AccessKeyId')"
+        echo "::add-mask::$(echo "$CREDS" | jq -r '.Credentials.SecretAccessKey')"
+        echo "::add-mask::$(echo "$CREDS" | jq -r '.Credentials.SessionToken')"
 
         echo "AWS_ACCESS_KEY_ID=$(echo "$CREDS" | jq -r '.Credentials.AccessKeyId')" >> "$GITHUB_ENV"
         echo "AWS_SECRET_ACCESS_KEY=$(echo "$CREDS" | jq -r '.Credentials.SecretAccessKey')" >> "$GITHUB_ENV"

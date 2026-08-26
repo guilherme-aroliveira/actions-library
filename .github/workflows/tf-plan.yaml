@@ -32,6 +32,7 @@ on:
 jobs:
 
   tf-plan:
+    name: Terraform Plan
     if: |
       (github.event_name == 'pull_request' && github.base_ref == 'main') || 
       (github.event_name == 'push' && github.ref == 'refs/heads/main')
@@ -74,41 +75,34 @@ jobs:
         tfenv use "$TF_VERSION"
         echo "Terraform version: $(terraform version)"
 
-    #- name: Configure AWS credentials via OIDC
-    #  env:
-    #    AWS_ASSUME_ROLE: ${{ secrets.AWS_ASSUME_ROLE }}
-    #    AWS_REGION: ${{ secrets.AWS_REGION }}
-    #  run: |
-    #    set -euo pipefail
-    #    echo "Assuming AWS role via OIDC"
-    #    echo "AWS_ASSUME_ROLE is set:" $([ -n "${AWS_ASSUME_ROLE:-}" ] && echo yes || echo no)
-    #    
-    #    AWS_JWT=$(curl -sSL \
-    #      -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-    #      "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com" \
-    #      | jq -r '.value')
-    #
-    #    CREDS=$(aws sts assume-role-with-web-identity \
-    #      --role-arn "$AWS_ASSUME_ROLE" \
-    #      --role-session-name "github-actions-${{ github.run_id }}" \
-    #      --web-identity-token "$AWS_JWT" \
-    #      --region "$AWS_REGION" \
-    #      --output json)
-    #
-    #    echo "::add-mask::$(echo "$CREDS" | jq -r '.Credentials.AccessKeyId')"
-    #    echo "::add-mask::$(echo "$CREDS" | jq -r '.Credentials.SecretAccessKey')"
-    #    echo "::add-mask::$(echo "$CREDS" | jq -r '.Credentials.SessionToken')"
-    #
-    #    echo "AWS_ACCESS_KEY_ID=$(echo "$CREDS" | jq -r '.Credentials.AccessKeyId')" >> "$GITHUB_ENV"
-    #    echo "AWS_SECRET_ACCESS_KEY=$(echo "$CREDS" | jq -r '.Credentials.SecretAccessKey')" >> "$GITHUB_ENV"
-    #    echo "AWS_SESSION_TOKEN=$(echo "$CREDS" | jq -r '.Credentials.SessionToken')" >> "$GITHUB_ENV"
+    - name: Configure AWS credentials via OIDC
+      env:
+        AWS_ASSUME_ROLE: ${{ secrets.AWS_ASSUME_ROLE }}
+        AWS_REGION: ${{ secrets.AWS_REGION }}
+      run: |
+        set -euo pipefail
+        echo "Assuming AWS role via OIDC"
+        echo "AWS_ASSUME_ROLE is set:" $([ -n "${AWS_ASSUME_ROLE:-}" ] && echo yes || echo no)
+        
+        AWS_JWT=$(curl -sSL \
+          -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+          "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com" \
+          | jq -r '.value')
 
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v6.2.3
-      with: 
-        aws-region: ${{ secrets.AWS_REGION }}
-        role-to-assume:  ${{ secrets.AWS_ASSUME_ROLE }}
-        role-session-name: github-actions-${{ github.run_id }}
+        CREDS=$(aws sts assume-role-with-web-identity \
+          --role-arn "$AWS_ASSUME_ROLE" \
+          --role-session-name "github-actions-${{ github.run_id }}" \
+          --web-identity-token "$AWS_JWT" \
+          --region "$AWS_REGION" \
+          --output json)
+
+        echo "::add-mask::$(echo "$CREDS" | jq -r '.Credentials.AccessKeyId')"
+        echo "::add-mask::$(echo "$CREDS" | jq -r '.Credentials.SecretAccessKey')"
+        echo "::add-mask::$(echo "$CREDS" | jq -r '.Credentials.SessionToken')"
+
+        echo "AWS_ACCESS_KEY_ID=$(echo "$CREDS" | jq -r '.Credentials.AccessKeyId')" >> "$GITHUB_ENV"
+        echo "AWS_SECRET_ACCESS_KEY=$(echo "$CREDS" | jq -r '.Credentials.SecretAccessKey')" >> "$GITHUB_ENV"
+        echo "AWS_SESSION_TOKEN=$(echo "$CREDS" | jq -r '.Credentials.SessionToken')" >> "$GITHUB_ENV"
 
     - name: Terraform Init
       env:
@@ -121,6 +115,7 @@ jobs:
           -backend-config="key=${AWS_BUCKET_KEY}" \
           -backend-config="use_lockfile=true" \
           -backend-config="encrypt=true"
+      continue-on-error: false
 
     - name: Terraform Plan
       run: |

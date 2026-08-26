@@ -14,8 +14,8 @@ on:
 
 jobs:
 
-  ecr-push:
-    name: ECR 
+  helm-lint:
+    name: Helm Lint 
     runs-on: ubuntu-22.04
 
     steps:
