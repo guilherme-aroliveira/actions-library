@@ -83,31 +83,18 @@ jobs:
         echo "Assuming AWS role via OIDC"
         echo "AWS_ASSUME_ROLE is set:" $([ -n "${AWS_ASSUME_ROLE:-}" ] && echo yes || echo no)
         
-        # Sanity check: Ensure the internal tokens actually exist now
-        if [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
-          echo "ERROR: ACTIONS_ID_TOKEN_REQUEST_TOKEN is empty. Check workflow permissions!" >&2
-          exit 1
-        fi
-        
         AWS_JWT=$(curl -sSL \
           -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
           "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com" \
           | jq -r '.value')
 
-        # Guard against a failed curl or empty JSON token value
-        if [ -z "$AWS_JWT" ] || [ "$AWS_JWT" == "null" ]; then
-          echo "ERROR: Failed to retrieve OIDC token from GitHub API." >&2
-          exit 1
-        fi
-
         CREDS=$(aws sts assume-role-with-web-identity \
-          --role-arn "$AWS_ASSUME_ROLE" \
+          --role-arn ${AWS_ASSUME_ROLE} \
           --role-session-name "github-actions-${{ github.run_id }}" \
           --web-identity-token "$AWS_JWT" \
-          --region "$AWS_REGION" \
+          --region ${AWS_REGION} \
           --output json)
 
-        # Use mask commands to prevent AWS tokens from leaking into runner logs
         echo "::add-mask::$(echo "$CREDS" | jq -r '.Credentials.AccessKeyId')"
         echo "::add-mask::$(echo "$CREDS" | jq -r '.Credentials.SecretAccessKey')"
         echo "::add-mask::$(echo "$CREDS" | jq -r '.Credentials.SessionToken')"
