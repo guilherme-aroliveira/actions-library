@@ -34,13 +34,19 @@ jobs:
     env:
       TF_WORKDIR: ${{ inputs.work_dir }}
       TF_VERSION: ${{ inputs.tf_version }}
-    defaults:
-      run:
-        working-directory: ${{ inputs.work_dir }}
 
     steps:
+
     - name: Checkout repository
-      uses: actions/checkout@v7
+      working-directory: ${{ github.workspace }}
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        set -euo pipefail
+        git init -q
+        git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+        git fetch --depth=1 origin "$GITHUB_SHA"
+        git checkout -q FETCH_HEAD
 
     - name: Install prerequisites
       run: |
@@ -68,11 +74,37 @@ jobs:
         echo "Terraform version: $(terraform version)"
 
     - name: Configure AWS credentials via OIDC
-      uses: aws-actions/configure-aws-credentials@v6.2.3
-      with:
-        aws-region: ${{ secrets.AWS_REGION }}
-        role-to-assume: ${{ secrets.AWS_ASSUME_ROLE }}
-        role-session-name: github-actions-${{ github.run_id }}
+      env:
+        AWS_ASSUME_ROLE: ${{ secrets.AWS_ASSUME_ROLE }}
+        AWS_REGION: ${{ secrets.AWS_REGION }}
+      run: |
+        set -euo pipefail
+        echo "Assuming AWS role via OIDC"
+        echo "AWS_ASSUME_ROLE is set:" $([ -n "${AWS_ASSUME_ROLE:-}" ] && echo yes || echo no)
+        
+        AWS_JWT=$(curl -sSL \
+          -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+          "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com" \
+          | jq -r '.value')
+ 
+        CREDS=$(aws sts assume-role-with-web-identity \
+          --role-arn "$AWS_ASSUME_ROLE" \
+          --role-session-name "github-actions-${{ github.run_id }}" \
+          --web-identity-token "$AWS_JWT" \
+          --region "$AWS_REGION" \
+          --output json)
+ 
+        echo "::add-mask::$(echo "$CREDS" | jq -r '.Credentials.AccessKeyId')"
+        echo "::add-mask::$(echo "$CREDS" | jq -r '.Credentials.SecretAccessKey')"
+        echo "::add-mask::$(echo "$CREDS" | jq -r '.Credentials.SessionToken')"
+ 
+        echo "AWS_ACCESS_KEY_ID=$(echo "$CREDS" | jq -r '.Credentials.AccessKeyId')" >> "$GITHUB_ENV"
+        echo "AWS_SECRET_ACCESS_KEY=$(echo "$CREDS" | jq -r '.Credentials.SecretAccessKey')" >> "$GITHUB_ENV"
+        echo "AWS_SESSION_TOKEN=$(echo "$CREDS" | jq -r '.Credentials.SessionToken')" >> "$GITHUB_ENV"
+
+    - name: Sts GetCallerIdentity
+      run: |
+        aws sts get-caller-identity
 
     - name: Terraform Init
       env:
