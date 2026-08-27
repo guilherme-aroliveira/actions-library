@@ -15,6 +15,11 @@ on:
         description: "Deployment environment (prod/dev)"
         required: true
         type: string
+      save_artifact:
+        description: "Whether to upload the plan as an artifact for a later apply"
+        required: false
+        type: boolean
+        default: true
       #cloud_provider:
       #  description: "Cloud provider to use"
       #  required: true
@@ -140,6 +145,7 @@ jobs:
       continue-on-error: false
 
     - name: Upload plan artifact
+      if: inputs.save_artifact
       uses: actions/upload-artifact@v7
       with:
         name: tf-plan-${{ github.sha }}
