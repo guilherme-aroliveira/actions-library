@@ -42,6 +42,9 @@ jobs:
       TF_WORKDIR: ${{ inputs.work_dir }}
       TF_VERSION: ${{ inputs.tf_version }}
       TF_VAR_env: ${{ inputs.tf_env }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.work_dir }}
 
     steps:
     
@@ -55,18 +58,6 @@ jobs:
         git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
         git fetch --depth=1 origin "$GITHUB_SHA"
         git checkout -q FETCH_HEAD
-
-    - name: Debug — check working directory contents
-      run: |
-        echo "PWD: $(pwd)"
-        echo "Listing current directory:"
-        ls -la
-        echo "Listing github.workspace:"
-        ls -la "${{ github.workspace }}"
-        echo "Listing github.workspace recursively (2 levels):"
-        find "${{ github.workspace }}" -maxdepth 2
-        ls -la "${{ github.workspace }}/terraform/environment/"
-        find "${{ github.workspace }}/terraform" -name "*.tf"
 
     - name: Install prerequisites
       run: |

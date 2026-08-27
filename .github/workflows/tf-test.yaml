@@ -26,6 +26,9 @@ jobs:
       TF_WORKDIR: ${{ inputs.work_dir }}
       TF_VERSION: ${{ inputs.tf_version }}
       MODULES_DIR: "${{ inputs.modules_dir }}"
+    defaults:
+      run:
+        working-directory: ${{ inputs.work_dir }}
         
     steps:
     

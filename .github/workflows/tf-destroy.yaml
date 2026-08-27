@@ -34,6 +34,9 @@ jobs:
     env:
       TF_WORKDIR: ${{ inputs.work_dir }}
       TF_VERSION: ${{ inputs.tf_version }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.work_dir }}
 
     steps:
 
