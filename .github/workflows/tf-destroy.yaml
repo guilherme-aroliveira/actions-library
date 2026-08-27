@@ -11,6 +11,10 @@ on:
         description: "Version of terraform to install"
         required: true
         type: string
+      tf_env:
+        description: "Deployment environment (prod/dev)"
+        required: true
+        type: string
       #cloud_provider:
       #  description: "Cloud provider to use"
       #  required: true
@@ -31,6 +35,7 @@ jobs:
     name: Terraform Destroy
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-22.04
+    environment: ${{ inputs.tf_env }}
     env:
       TF_WORKDIR: ${{ inputs.work_dir }}
       TF_VERSION: ${{ inputs.tf_version }}
@@ -85,7 +90,7 @@ jobs:
         echo "Assuming AWS role via OIDC"
         echo "AWS_ASSUME_ROLE is set:" $([ -n "${AWS_ASSUME_ROLE:-}" ] && echo yes || echo no)
         echo "Role account/name: $(echo "$AWS_ASSUME_ROLE" | cut -d: -f5,6)"
-        
+
         AWS_JWT=$(curl -sSL \
           -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
           "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com" \
