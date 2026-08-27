@@ -65,6 +65,8 @@ jobs:
         ls -la "${{ github.workspace }}"
         echo "Listing github.workspace recursively (2 levels):"
         find "${{ github.workspace }}" -maxdepth 2
+        ls -la "${{ github.workspace }}/terraform/environment/"
+        find "${{ github.workspace }}/terraform" -name "*.tf"
 
     - name: Install prerequisites
       run: |
