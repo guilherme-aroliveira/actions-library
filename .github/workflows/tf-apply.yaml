@@ -124,6 +124,7 @@ jobs:
 
     - name: Terraform Init
       env:
+        AWS_REGION: ${{ secrets.AWS_REGION}}
         AWS_BUCKET_NAME: ${{ secrets.AWS_BUCKET_NAME }}
         AWS_BUCKET_KEY: ${{ secrets.AWS_BUCKET_KEY }}
       run: |
@@ -131,6 +132,7 @@ jobs:
         terraform init -backend=true \
           -backend-config="bucket=${AWS_BUCKET_NAME}" \
           -backend-config="key=${AWS_BUCKET_KEY}" \
+          -backend-config="region=${AWS_REGION}" \
           -backend-config="use_lockfile=true" \
           -backend-config="encrypt=true"
 
