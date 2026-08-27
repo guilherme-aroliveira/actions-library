@@ -56,6 +56,16 @@ jobs:
         git fetch --depth=1 origin "$GITHUB_SHA"
         git checkout -q FETCH_HEAD
 
+    - name: Debug — check working directory contents
+      run: |
+        echo "PWD: $(pwd)"
+        echo "Listing current directory:"
+        ls -la
+        echo "Listing github.workspace:"
+        ls -la "${{ github.workspace }}"
+        echo "Listing github.workspace recursively (2 levels):"
+        find "${{ github.workspace }}" -maxdepth 2
+
     - name: Install prerequisites
       run: |
         set -euo pipefail
