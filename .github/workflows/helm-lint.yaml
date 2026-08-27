@@ -47,7 +47,6 @@ jobs:
       run: |
         set -euo pipefail
         helm lint ./helm-apps/${{ inputs.app }}
-      continue-on-error: false
 
     - name: Check template
       run: |

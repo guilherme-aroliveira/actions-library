@@ -125,7 +125,6 @@ jobs:
           -n ${{ inputs.namespace }} \ 
           --create-namespace \
           --dry-run
-      continue-on-error: false
 
     - name: Deploy Helm Chart
       run: |
